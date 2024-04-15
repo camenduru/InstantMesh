@@ -10,14 +10,14 @@
 
 This repo is the official implementation of InstantMesh, a feed-forward framework for efficient 3D mesh generation from a single image based on the LRM architecture.
 
-
-https://github.com/TencentARC/InstantMesh/assets/20635237/737bba2d-df45-4707-8557-1dd84f248764
+https://github.com/TencentARC/InstantMesh/assets/20635237/dab3511e-e7c6-4c0b-bab7-15772045c47d
 
 # 🚩 Todo List
 
 - [x] Release inference and training code.
 - [x] Release model weights.
 - [x] Release hugging face gradio demo. Please try it at [demo](https://huggingface.co/spaces/TencentARC/InstantMesh) link.
+- [ ] Add support to low-momery GPU environment (we will do this as soon as possible).
 - [ ] Add support to more multi-view diffusion models.
 
 # ⚙️ Dependencies and Installation
@@ -79,7 +79,7 @@ python run.py configs/instant-nerf-large.yaml examples/hatsune_miku.png --save_v
 
 # 💻 Training
 
-We provide our training code to facilatate future research. But we cannot provide the training dataset due to its size. Please refer to our [dataloader](src/data/objaverse.py) for more details.
+We provide our training code to facilitate future research. But we cannot provide the training dataset due to its size. Please refer to our [dataloader](src/data/objaverse.py) for more details.
 
 To train the sparse-view reconstruction models, please run:
 ```bash

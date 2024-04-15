@@ -1,12 +1,7 @@
 import os
-import argparse
 import imageio
-import time
-import mcubes
-import cv2
 import numpy as np
 import torch
-import trimesh
 import rembg
 from PIL import Image
 from torchvision.transforms import v2
@@ -26,7 +21,6 @@ from src.utils.mesh_util import save_obj
 from src.utils.infer_util import remove_background, resize_foreground, images_to_video
 
 import tempfile
-from functools import partial
 from huggingface_hub import hf_hub_download
 
 
@@ -40,7 +34,7 @@ def get_render_cameras(batch_size=1, M=120, radius=2.5, elevation=10.0, is_flexi
         cameras = cameras.unsqueeze(0).repeat(batch_size, 1, 1, 1)
     else:
         extrinsics = c2ws.flatten(-2)
-        intrinsics = FOV_to_intrinsics(50.0).unsqueeze(0).repeat(M, 1, 1).float().flatten(-2)
+        intrinsics = FOV_to_intrinsics(30.0).unsqueeze(0).repeat(M, 1, 1).float().flatten(-2)
         cameras = torch.cat([extrinsics, intrinsics], dim=-1)
         cameras = cameras.unsqueeze(0).repeat(batch_size, 1, 1)
     return cameras
@@ -104,7 +98,7 @@ model.load_state_dict(state_dict, strict=True)
 
 model = model.to(device)
 if IS_FLEXICUBES:
-    model.init_flexicubes_geometry(device)
+    model.init_flexicubes_geometry(device, fovy=30.0)
 model = model.eval()
 
 print('Loading Finished!')
@@ -139,7 +133,8 @@ def generate_mvs(input_image, sample_steps, sample_seed):
 
     show_image = np.asarray(z123_image, dtype=np.uint8)
     show_image = torch.from_numpy(show_image)     # (960, 640, 3)
-    show_image = rearrange(show_image, '(n h) (m w) c -> (m h) (n w) c', n=3, m=2)
+    show_image = rearrange(show_image, '(n h) (m w) c -> (n m) h w c', n=3, m=2)
+    show_image = rearrange(show_image, '(n m) h w c -> (n h) (m w) c', n=2, m=3)
     show_image = Image.fromarray(show_image.numpy())
 
     return z123_image, show_image
@@ -160,8 +155,9 @@ def make_mesh(mesh_fpath, planes):
         )
 
         vertices, faces, vertex_colors = mesh_out
-        vertices = vertices[:, [0, 2, 1]]
+        vertices = vertices[:, [1, 2, 0]]
         vertices[:, -1] *= -1
+        faces = faces[:, [2, 1, 0]]
 
         save_obj(vertices, faces, vertex_colors, mesh_fpath)
         
@@ -176,7 +172,8 @@ def make3d(images):
     images = rearrange(images, 'c (n h) (m w) -> (n m) c h w', n=3, m=2)        # (6, 3, 320, 320)
 
     input_cameras = get_zero123plus_input_cameras(batch_size=1, radius=4.0).to(device)
-    render_cameras = get_render_cameras(batch_size=1, radius=4.0, is_flexicubes=IS_FLEXICUBES).to(device)
+    render_cameras = get_render_cameras(
+        batch_size=1, radius=4.5, elevation=20.0, is_flexicubes=IS_FLEXICUBES).to(device)
 
     images = images.unsqueeze(0).to(device)
     images = v2.functional.resize(images, (320, 320), interpolation=3, antialias=True).clamp(0, 1)
@@ -275,7 +272,7 @@ with gr.Blocks() as demo:
                     do_remove_background = gr.Checkbox(
                         label="Remove Background", value=True
                     )
-                    sample_seed = gr.Number(value=42, label="Seed  (Try a different value if the result is unsatisfying)", precision=0)
+                    sample_seed = gr.Number(value=42, label="Seed Value", precision=0)
 
                     sample_steps = gr.Slider(
                         label="Sample Steps",
@@ -324,6 +321,9 @@ with gr.Blocks() as demo:
                     width=768,
                     interactive=False,
                 )
+            with gr.Row():
+                gr.Markdown('''Try a different <b>seed value</b> if the result is unsatisfying (Default: 42).''')
+
     gr.Markdown(_LINKS_)
     gr.Markdown(_CITE_)
     mv_images = gr.State()
